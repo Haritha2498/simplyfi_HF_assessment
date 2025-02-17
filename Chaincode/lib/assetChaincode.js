@@ -3,83 +3,113 @@
 const { Contract } = require('fabric-contract-api');
 
 class AssetTransfer extends Contract {
-
     
-    async CreateAsset(ctx, assetID, owner, value) {
-        const role = await this.GetClientRole(ctx);
-        if (role !== 'Admin') {
-            throw new Error('Only Admins can create assets');
+    async CreateAsset(ctx, id, owner, value) {
+        const role = await this.getClientRole(ctx);
+        if (role !== 'admin') {
+            throw new Error('Access denied: Only admins can create assets');
         }
-        const exists = await this.AssetExists(ctx, assetID);
-        if (exists) {
-            throw new Error(`Asset ${assetID} already exists`);
-        }
-        const asset = { assetID, owner, value: parseInt(value) };
-        await ctx.stub.putState(assetID, Buffer.from(JSON.stringify(asset)));
-        return JSON.stringify(asset);
+
+        const asset = {
+            ID: id,
+            Owner: owner,
+            Value: parseInt(value),
+        };
+
+        await ctx.stub.putState(id, Buffer.from(JSON.stringify(asset)));
+        return `Asset ${id} created successfully`;
     }
 
-    async ReadAsset(ctx, assetID) {
-        const assetJSON = await ctx.stub.getState(assetID);
-        if (!assetJSON || assetJSON.length === 0) {
-            throw new Error(`Asset ${assetID} does not exist`);
+    //  Read an Asset - Auditors can read all assets, Users can only read their own
+    async ReadAsset(ctx, id) {
+        const assetBytes = await ctx.stub.getState(id);
+        if (!assetBytes || assetBytes.length === 0) {
+            throw new Error(`Asset ${id} not found`);
         }
-        const asset = JSON.parse(assetJSON.toString());
-        const role = await this.GetClientRole(ctx);
-        const clientID = await this.GetClientID(ctx);
 
-        if (role === 'Auditor' || asset.owner === clientID) {
-            return JSON.stringify(asset);
+        const asset = JSON.parse(assetBytes.toString());
+        const role = await this.getClientRole(ctx);
+        const clientEnrollmentID = this.getClientEnrollmentID(ctx);
+
+        if (role === 'auditor' || asset.Owner === clientEnrollmentID) {
+            return asset;
         } else {
-            throw new Error('Access Denied: You can only view your own assets');
+            throw new Error('Access denied: You can only view your own assets');
         }
     }
 
-    async UpdateAsset(ctx, assetID, newValue) {
-        const assetString = await this.ReadAsset(ctx, assetID);
-        const asset = JSON.parse(assetString);
-        asset.value = parseInt(newValue);
-        await ctx.stub.putState(assetID, Buffer.from(JSON.stringify(asset)));
-        return JSON.stringify(asset);
-    }
 
-    async DeleteAsset(ctx, assetID) {
-        const exists = await this.AssetExists(ctx, assetID);
-        if (!exists) {
-            throw new Error(`Asset ${assetID} does not exist`);
-        }
-        await ctx.stub.deleteState(assetID);
-        return `Asset ${assetID} deleted`;
-    }
-
+    // Get All Assets - Only Auditors can view all assets
     async GetAllAssets(ctx) {
-        const role = await this.GetClientRole(ctx);
-        if (role !== 'Auditor') {
-            throw new Error('Only Auditors can view all assets');
+        const role = await this.getClientRole(ctx);
+        if (role !== 'auditor') {
+            throw new Error('Access denied: Only auditors can view all assets');
         }
+
         const iterator = await ctx.stub.getStateByRange('', '');
         const assets = [];
-        let result = await iterator.next();
-        while (!result.done) {
-            const asset = JSON.parse(result.value.value.toString('utf8'));
-            assets.push(asset);
-            result = await iterator.next();
+        
+        while (true) {
+            const result = await iterator.next();
+            if (result.value && result.value.value.toString()) {
+                const asset = JSON.parse(result.value.value.toString());
+                assets.push(asset);
+            }
+            if (result.done) break;
         }
+
         return JSON.stringify(assets);
     }
 
-    async AssetExists(ctx, assetID) {
-        const assetJSON = await ctx.stub.getState(assetID);
-        return assetJSON && assetJSON.length > 0;
+    // Update an Asset - Only Admins can update assets
+    async UpdateAsset(ctx, id, newOwner, newValue) {
+        const role = await this.getClientRole(ctx);
+        if (role !== 'admin') {
+            throw new Error('Access denied: Only admins can update assets');
+        }
+
+        const assetBytes = await ctx.stub.getState(id);
+        if (!assetBytes || assetBytes.length === 0) {
+            throw new Error(`Asset ${id} not found`);
+        }
+
+        const asset = JSON.parse(assetBytes.toString());
+        asset.Owner = newOwner;
+        asset.Value = parseInt(newValue);
+
+        await ctx.stub.putState(id, Buffer.from(JSON.stringify(asset)));
+        return `Asset ${id} updated successfully`;
     }
 
-    async GetClientRole(ctx) {
-        const identity = ctx.clientIdentity;
-        return identity.getAttributeValue('role');
+    // Delete an Asset - Only Admins can delete assets
+    async DeleteAsset(ctx, id) {
+        const role = await this.getClientRole(ctx);
+        if (role !== 'admin') {
+            throw new Error('Access denied: Only admins can delete assets');
+        }
+
+        const assetBytes = await ctx.stub.getState(id);
+        if (!assetBytes || assetBytes.length === 0) {
+            throw new Error(`Asset ${id} not found`);
+        }
+
+        await ctx.stub.deleteState(id);
+        return `Asset ${id} deleted successfully`;
     }
 
-    async GetClientID(ctx) {
-        return ctx.clientIdentity.getID();
+    // Get Client Role from Identity
+    async getClientRole(ctx) {
+        const role = ctx.clientIdentity.getAttributeValue('role');
+        if (!role) {
+            console.warn('No role found in identity attributes. Assigning "user" by default.');
+            return 'user';
+        }
+        return role;
+    }
+
+    // Get Client ID
+    getClientEnrollmentID(ctx) {
+        return ctx.clientIdentity.getID().split("::")[1];
     }
 }
 

@@ -2,7 +2,7 @@ Organizations:
   - &OrdererOrg
     Name: OrdererOrg
     ID: OrdererMSP
-    MSPDir: ../organizations/ordererOrganizations/test.com/msp
+    MSPDir: ../organizations/ordererOrganizations/sample.com/msp
     Policies:
       Readers:
         Type: Signature
@@ -14,41 +14,42 @@ Organizations:
         Type: Signature
         Rule: "OR('OrdererMSP.admin')"
     OrdererEndpoints:
-      - orderer.test.com:7050
-  - &org1
-    Name: org1MSP
-    ID: org1MSP
-    MSPDir: ../organizations/peerOrganizations/org1.test.com/msp
+      - orderer.sample.com:7050
+  - &Org1
+    Name: organization1MSP
+    ID: organization1MSP
+    MSPDir: ../organizations/peerOrganizations/organization1.sample.com/msp
     Policies:
       Readers:
         Type: Signature
-        Rule: "OR('org1MSP.admin', 'org1MSP.peer', 'org1MSP.client')"
+        Rule: "OR('organization1MSP.admin', 'organization1MSP.peer', 'organization1MSP.client')"
       Writers:
         Type: Signature
-        Rule: "OR('org1MSP.admin', 'org1MSP.client')"
+        Rule: "OR('organization1MSP.admin', 'organization1MSP.client')"
       Admins:
         Type: Signature
-        Rule: "OR('org1MSP.admin')"
+        Rule: "OR('organization1MSP.admin')"
       Endorsement:
         Type: Signature
-        Rule: "OR('org1MSP.peer')"
-  - &org2
-    Name: org2MSP
-    ID: org2MSP
-    MSPDir: ../organizations/peerOrganizations/org2.test.com/msp
+        Rule: "OR('organization1MSP.peer')"
+  - &Org2
+    Name: organization2MSP
+    ID: organization2MSP
+    MSPDir: ../organizations/peerOrganizations/organization2.sample.com/msp
     Policies:
       Readers:
         Type: Signature
-        Rule: "OR('org2MSP.admin', 'org2MSP.peer', 'org2MSP.client')"
+        Rule: "OR('organization2MSP.admin', 'organization2MSP.peer', 'organization2MSP.client')"
       Writers:
         Type: Signature
-        Rule: "OR('org2MSP.admin', 'org2MSP.client')"
+        Rule: "OR('organization2MSP.admin', 'organization2MSP.client')"
       Admins:
         Type: Signature
-        Rule: "OR('org2MSP.admin')"
+        Rule: "OR('organization2MSP.admin')"
       Endorsement:
         Type: Signature
-        Rule: "OR('org2MSP.peer')"
+        Rule: "OR('organization2MSP.peer')"
+
 
 
 Capabilities:  
@@ -82,7 +83,7 @@ Application: &ApplicationDefaults
 
 Orderer: &OrdererDefaults
   Addresses:
-    - orderer.test.com:7050
+    - orderer.sample.com:7050
   BatchTimeout: 2s
   BatchSize:
     MaxMessageCount: 10
@@ -118,23 +119,23 @@ Channel: &ChannelDefaults
     <<: *ChannelCapabilities
 
 Profiles:
-  ChannelUsingRaft:
+  TwoOrgsChannel:
     <<: *ChannelDefaults
     Orderer:
       <<: *OrdererDefaults
       OrdererType: etcdraft
       EtcdRaft:
         Consenters:
-          - Host: orderer.test.com
+          - Host: orderer.sample.com
             Port: 7050
-            ClientTLSCert: ../organizations/ordererOrganizations/test.com/orderers/orderer.test.com/tls/server.crt
-            ServerTLSCert: ../organizations/ordererOrganizations/test.com/orderers/orderer.test.com/tls/server.crt
+            ClientTLSCert: ../organizations/ordererOrganizations/sample.com/orderers/orderer.sample.com/tls/server.crt
+            ServerTLSCert: ../organizations/ordererOrganizations/sample.com/orderers/orderer.sample.com/tls/server.crt
       Organizations:
         - *OrdererOrg
       Capabilities: *OrdererCapabilities
     Application:
       <<: *ApplicationDefaults
       Organizations:
-        - *org1
-        - *org2
+        - *Org1
+        - *Org2
       Capabilities: *ApplicationCapabilities
